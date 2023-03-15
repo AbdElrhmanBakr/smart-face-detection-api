@@ -19,10 +19,26 @@ const dataBase = {
 
 const express = require("express");
 const cors = require("cors");
+const knex = require("knex");
+const { response } = require("express");
+
 const app = express();
 
+const db = knex({
+  client: "pg",
+  connection: {
+    host: "127.0.0.1",
+    port: 5432,
+    user: "postgres",
+    password: "admin",
+    database: "smart-face-detection",
+  },
+});
+
+//# Middleware
 app.use(express.json());
 app.use(cors());
+
 //# Running Server
 app.listen(3000, () => {
   console.log("Server is running.");
@@ -54,15 +70,16 @@ app.post("/login", (req, res) => {
 //# Sign Up - Register
 app.post("/signup", (req, res) => {
   if (req.body) {
-    const { user, email, password } = req.body;
-    dataBase.users.push({
-      id: "125",
-      user: user,
-      email: email,
-      password: password,
-      date: new Date(),
-    });
-    res.json(dataBase.users[dataBase.users.length - 1]);
+    const { name, email, password } = req.body;
+    db("users")
+      .returning("*")
+      .insert({
+        name: name,
+        email: email,
+        joined: new Date(),
+      })
+      .then((user) => res.json(user[0]))
+      .catch((Error) => res.status(400).json("Unable to register."));
   }
 });
 
