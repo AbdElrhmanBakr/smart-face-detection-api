@@ -1,26 +1,8 @@
-const dataBase = {
-  users: [
-    {
-      id: "123",
-      user: "Abdo",
-      email: "abdo@gmail.com",
-      password: "1234",
-      date: new Date(),
-    },
-    {
-      id: "124",
-      user: "Heba",
-      email: "heba@gmail.com",
-      password: "12345",
-      date: new Date(),
-    },
-  ],
-};
-
 const express = require("express");
 const cors = require("cors");
 const knex = require("knex");
-const { response } = require("express");
+const bcrypt = require("bcrypt");
+const saltRounds = 10;
 
 const app = express();
 
@@ -45,55 +27,115 @@ app.listen(3000, () => {
   console.log(`Local:   http://localhost:3000`);
 });
 
-//# Root
-app.get("/", (req, res) => {
-  if (req.body) {
-    res.json(dataBase.users);
-  }
-});
-
 //# Log In
-app.post("/login", (req, res) => {
+app.post("/login", async (req, res) => {
   if (req.body) {
     const { email, password } = req.body;
-    if (
-      email === dataBase.users[0].email &&
-      password === dataBase.users[0].password
-    ) {
-      res.json(dataBase.users[0]);
-    } else {
-      res.status(400).json("Failed to Log In.");
+    try {
+      //Get user from login table
+      const user = await db("login")
+        .select("email", "hash")
+        .where({ email: email });
+
+      //Compare password & hash
+      const isValid = await bcrypt.compare(password, user[0].hash);
+
+      if (isValid) {
+        const userRegisterData = await db("users")
+          .select("*")
+          .where({ email: email });
+        res.json(userRegisterData[0]);
+      } else {
+        res.status(400).json("Unable to login.");
+      }
+    } catch (error) {
+      res.status(400).json("Error logging in.");
     }
   }
 });
 
-//# Sign Up - Register
-app.post("/signup", (req, res) => {
+//# Sign Up - Register Using Async/Await
+app.post("/signup", async (req, res) => {
   if (req.body) {
     const { name, email, password } = req.body;
-    db("users")
-      .returning("*")
-      .insert({
-        name: name,
-        email: email,
-        joined: new Date(),
-      })
-      .then((user) => res.json(user[0]))
-      .catch((Error) => res.status(400).json("Unable to register."));
+
+    //Start transaction
+    try {
+      //Get the hash
+      const hash = await bcrypt.hash(password, saltRounds);
+      await db.transaction(async (trx) => {
+        //Insert into login table
+        const loginEmail = await trx("login")
+          .insert({
+            email,
+            hash,
+          })
+          .returning("email"); //<-- Return email for using it in Register to make sure both inserting are connected.
+
+        //Insert into users table
+        const user = await trx("users")
+          .insert({
+            name,
+            email: loginEmail[0].email,
+            joined: new Date(),
+          })
+          .returning("*"); //<-- Return all the user column.
+
+        //Respond to post request with the user
+        res.json(user[0]);
+      });
+    } catch (err) {
+      res.status(400).json("Unable to register");
+    }
   }
 });
+
+// //# Sign Up - Register Using Promises
+// app.post("/signup", (req, res) => {
+//   if (req.body) {
+//     const { name, email, password } = req.body;
+
+//     //Get the hash
+//     bcrypt.hash(password, saltRounds, function (err, hash) {
+//       //Start transaction
+//       db.transaction((trx) => {
+//         //Insert into login table
+//         trx
+//           .insert({
+//             email: email,
+//             hash: hash,
+//           })
+//           .into("login")
+//           .returning("email")
+//           .then((loginEmail) => {
+//             return trx("users")
+//               .returning("*")
+//               .insert({
+//                 name: name,
+//                 email: loginEmail[0].email,
+//                 joined: new Date(),
+//               })
+//               .then((user) => res.json(user[0]));
+//           })
+//           .then(trx.commit)
+//           .catch(trx.rollback);
+//       }).catch((Error) => res.status(400).json("Unable to register."));
+//     });
+//   }
+// });
 
 //# Profile
 app.get("/profile/:id", (req, res) => {
   const { id } = req.params;
-  let found = false;
-  dataBase.users.forEach((user) => {
-    if (user.id === id) {
-      found = true;
-      return res.json(user);
-    }
-  });
-  if (!found) {
-    res.status(404).json("User Not Found.");
-  }
+  db.select("*")
+    .from("users")
+    .where({ id })
+    .then((user) => {
+      if (user.length) {
+        res.json(user[0]);
+      } else {
+        res.status(404).json("User Not Found.");
+      }
+    })
+    .catch((error) => console.log("Error getting user."));
 });
