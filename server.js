@@ -1,7 +1,7 @@
 import { handleRegister } from "./controllers/register.js";
 import { handleLogin } from "./controllers/login.js";
 import { handleProfile } from "./controllers/profile.js";
-import { handleImage } from "./controllers/clarifai.js";
+import { handleImageApiCall } from "./controllers/clarifai.js";
 
 import express from "express";
 import cors from "cors";
@@ -44,4 +44,4 @@ app.post("/signup", (req, res) =>
 app.get("/profile/:id", (req, res) => handleProfile(req, res, db));
 
 //# Profile
-app.post("/image", (req, res) => handleImage(req, res));
+app.post("/image", (req, res) => handleImageApiCall(req, res));
