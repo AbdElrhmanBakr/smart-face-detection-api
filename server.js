@@ -3,11 +3,14 @@ import { handleLogin } from "./controllers/login.js";
 import { handleProfile } from "./controllers/profile.js";
 import { handleImageApiCall } from "./controllers/clarifai.js";
 
+import * as dotenv from "dotenv";
+dotenv.config();
 import express from "express";
 import cors from "cors";
 import knex from "knex";
 import bcrypt from "bcrypt";
 const saltRounds = 10;
+const PORT = process.env.PORT || 3000;
 
 const app = express();
 
@@ -24,12 +27,12 @@ const db = knex({
 
 //# Middleware
 app.use(express.json());
-app.use(cors());
+app.use(cors({ origin: "*", credentials: true }));
 
 //# Running Server
-app.listen(3000, () => {
+app.listen(PORT, () => {
   console.log("Server is running.");
-  console.log(`Local:   http://localhost:3000`);
+  console.log(`Local:   http://localhost:${PORT}`);
 });
 
 //# Log In
